@@ -1,10 +1,9 @@
-
 class SubscribeTest extends TestBase {
 
-    urls = null;
+    urlSet = null;
 
 	constructor() {
-        urls =[];
+        urlSet ={};
 
 		_create();
 
@@ -21,10 +20,11 @@ class SubscribeTest extends TestBase {
 			try {
 				// number of topics
 				local not =	 ::irand(9) + 1;
+				local topicSet = {};
 				local topics = [];
 				while(not--) {
 					local url = _getUrl();
-					print("Subscribing " + url)
+					print("Subscribing " + url);
 					topics.append(url);
 				}
 
@@ -33,7 +33,7 @@ class SubscribeTest extends TestBase {
 				if (id < 0) {
 					print("Can't subscribe next group. Err=" + id )
 
-					imp.wakeup(20, _subscribe.bindenv(this));
+					// imp.wakeup(20, _subscribe.bindenv(this)); // do not allow timer to overflow
 				}
 
 				print("Subscribe request " + id + " was sent");
@@ -53,16 +53,17 @@ class SubscribeTest extends TestBase {
 		// test closed
 		if (client == null) return;
 
-		if (urls.len() > 0) {
+		if (urlSet.len() > 0) {
 
-			local not = ::irand(urls.len() - 1) + 1;
+			local not = ::irand(urlSet.len() - 1) + 1;
 
 			local topics = [];
-
-			while(not--) {
-				local url = urls.remove(0);
-				print("Unsubscribing " + url);
-				topics.append(url);
+			foreach (key, value in urlSet) {
+				not--;
+				delete urlSet[key];
+				print("Unsubscribing " + key);
+				topics.append(key);
+				if (not == 0) break;
 			}
 
 			client.unsubscribe(topics);
@@ -92,21 +93,46 @@ class SubscribeTest extends TestBase {
 
     function _getUrl() {
         local url = CLOUD2DEVICE_URL;
-        local level = 0;
-
-        while (true) {
-            local rand = ::irand(100);
-            if (rand > 50 && level < MAX_TOPIC_URL_DEPTH) {
-                url = url + "/bubuka";
-            } else {
-                url = url + "/#";
-                break;
+		local maxConst = 59049; // 3^10
+		local rand = ::irand(maxConst);
+		local div;
+		local reminder = 0;
+		while (true) {
+			url = CLOUD2DEVICE_URL;
+			div = rand;
+			while (div > 0) {
+				reminder = div % 3;
+				div = div / 3;
+				switch (reminder) {
+					case 0:
+						url = url + "/#"
+						break;
+					case 1:
+						url = url + "/bu";
+						break;
+					case 2:
+						url = url + "/ru";
+						break;
+				}
+				
+				if (reminder == 0) {
+					break;
+				}
+				if (div < 3) {
+					url = url + "/#"
+					break;
+				}
 			}
-
-			level++;
-        }
-		urls.append(url);
-
+			if (url in urlSet) {
+				rand++;
+				if (rand > maxConst) {
+					rand = 1;
+				}
+			} else {
+				urlSet[url] <- 1;
+				break;
+			}
+		}
 		return url;
     }
 
